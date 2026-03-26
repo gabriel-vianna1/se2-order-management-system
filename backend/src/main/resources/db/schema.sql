@@ -12,7 +12,7 @@ CREATE TABLE produto (
     preco DECIMAL(10, 2),
     estoque INT
 );
-
+jh
 
 CREATE TABLE item_pedido (
     codigo INT AUTO_INCREMENT PRIMARY KEY,
