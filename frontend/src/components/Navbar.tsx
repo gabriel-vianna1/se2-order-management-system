@@ -20,7 +20,9 @@ export default function Navbar() {
           <div className="w-8 h-8 bg-stone-800 rounded-lg flex items-center justify-center">
             <span className="text-white text-sm font-bold">O</span>
           </div>
-          <span className="text-stone-800 font-semibold text-lg tracking-tight">OrderSystem</span>
+          <Link href="/" className=""> 
+              <span className="text-stone-800 font-semibold text-lg tracking-tight">OrderSystem</span>
+          </Link>
         </div>
         <div className="flex items-center gap-6">
           {links.map((link) => (

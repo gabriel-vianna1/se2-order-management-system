@@ -63,4 +63,8 @@ public class Produto {
     public Integer getEstoque() {
         return estoque;
     }
+
+    public void setIdProduto(Integer id_produto) {
+        this.id_produto = id_produto;
+    }
 }

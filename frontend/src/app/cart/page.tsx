@@ -4,32 +4,42 @@ import { useState } from "react";
 import Link from "next/link";
 import { useCart } from "../../context/CartContext";
 import Navbar from "../../components/Navbar";
-
-interface Order {
-  id: number;
-  items: { nome: string; qty: number; preco: number }[];
-  total: number;
-  data: string;
-}
+import { criarPedido } from "../../services/orderService";
 
 export default function CartPage() {
   const { cart, addToCart, removeFromCart, removeAllFromCart, clearCart, cartTotal } = useCart();
   const [finalized, setFinalized] = useState(false);
-  const [lastOrder, setLastOrder] = useState<Order | null>(null);
+  const [orderId, setOrderId] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function finalizarPedido() {
-    const order: Order = {
-      id: Date.now(),
-      items: cart.map((i) => ({ nome: i.product.nome, qty: i.qty, preco: i.product.preco })),
-      total: cartTotal,
-      data: new Date().toLocaleDateString("pt-BR"),
-    };
-    setLastOrder(order);
-    clearCart();
-    setFinalized(true);
+  async function finalizarPedido() {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Monta o payload no formato que o backend espera
+      const pedido = {
+        valorTotal: cartTotal,
+        itensPedido: cart.map((i) => ({
+          quantidade: i.qty,
+          valorItem: i.product.preco * i.qty,
+          produto: { id_produto: i.product.id },
+        })),
+      };
+
+      const criado = await criarPedido(pedido);
+      setOrderId(criado.id_pedido ?? null);
+      clearCart();
+      setFinalized(true);
+    } catch (err) {
+      setError("Erro ao finalizar pedido. Verifique se o backend está rodando.");
+    } finally {
+      setLoading(false);
+    }
   }
 
-  if (finalized && lastOrder) {
+  if (finalized) {
     return (
       <div className="min-h-screen bg-stone-50">
         <Navbar />
@@ -40,26 +50,7 @@ export default function CartPage() {
             </svg>
           </div>
           <h1 className="text-2xl font-bold text-stone-800 mb-2">Pedido Finalizado!</h1>
-          <p className="text-stone-500 mb-8">Pedido #{lastOrder.id} registrado com sucesso.</p>
-
-          <div className="bg-white rounded-xl border border-stone-200 p-6 text-left mb-6">
-            <h2 className="font-semibold text-stone-700 mb-4">Resumo do pedido</h2>
-            {lastOrder.items.map((item, idx) => (
-              <div key={idx} className="flex justify-between text-sm py-2 border-b border-stone-100 last:border-0">
-                <span className="text-stone-700">{item.nome} <span className="text-stone-400">x{item.qty}</span></span>
-                <span className="text-stone-800 font-medium">
-                  {(item.preco * item.qty).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                </span>
-              </div>
-            ))}
-            <div className="flex justify-between mt-4 pt-3 border-t border-stone-200">
-              <span className="font-bold text-stone-800">Total</span>
-              <span className="font-bold text-stone-800 text-lg">
-                {lastOrder.total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-              </span>
-            </div>
-          </div>
-
+          {orderId && <p className="text-stone-500 mb-8">Pedido #{orderId} registrado com sucesso.</p>}
           <div className="flex gap-3 justify-center">
             <Link href="/orders" className="bg-stone-800 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-stone-700 transition-colors">
               Ver Pedidos
@@ -104,35 +95,25 @@ export default function CartPage() {
                       {product.preco.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} cada
                     </p>
                   </div>
-                  {/* Qty controls */}
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => removeFromCart(product.id)}
-                      className="w-7 h-7 rounded-full border border-stone-200 flex items-center justify-center text-stone-600 hover:bg-stone-100 transition-colors"
-                    >
+                    <button onClick={() => removeFromCart(product.id)}
+                      className="w-7 h-7 rounded-full border border-stone-200 flex items-center justify-center text-stone-600 hover:bg-stone-100 transition-colors">
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
                       </svg>
                     </button>
                     <span className="w-6 text-center font-bold text-stone-800 text-sm">{qty}</span>
-                    <button
-                      onClick={() => addToCart(product)}
-                      className="w-7 h-7 rounded-full border border-stone-200 flex items-center justify-center text-stone-600 hover:bg-stone-100 transition-colors"
-                    >
+                    <button onClick={() => addToCart(product)}
+                      className="w-7 h-7 rounded-full border border-stone-200 flex items-center justify-center text-stone-600 hover:bg-stone-100 transition-colors">
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                       </svg>
                     </button>
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="font-bold text-stone-800 text-sm">
-                      {(product.preco * qty).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => removeAllFromCart(product.id)}
-                    className="p-1.5 text-stone-300 hover:text-red-400 transition-colors"
-                  >
+                  <p className="font-bold text-stone-800 text-sm shrink-0">
+                    {(product.preco * qty).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                  </p>
+                  <button onClick={() => removeAllFromCart(product.id)} className="p-1.5 text-stone-300 hover:text-red-400 transition-colors">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
@@ -155,11 +136,10 @@ export default function CartPage() {
                   <span>Total</span>
                   <span>{cartTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
                 </div>
-                <button
-                  onClick={finalizarPedido}
-                  className="w-full mt-4 bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 rounded-lg text-sm font-bold transition-colors"
-                >
-                  Finalizar Pedido
+                {error && <p className="text-red-500 text-xs mt-2">{error}</p>}
+                <button onClick={finalizarPedido} disabled={loading}
+                  className="w-full mt-4 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white py-2.5 rounded-lg text-sm font-bold transition-colors">
+                  {loading ? "Finalizando..." : "Finalizar Pedido"}
                 </button>
                 <Link href="/" className="block text-center mt-2 text-xs text-stone-400 hover:text-stone-600 transition-colors">
                   Continuar comprando

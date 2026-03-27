@@ -2,6 +2,8 @@ package com.order_management_system.backend.model;
 
 import java.math.BigDecimal;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
@@ -25,6 +27,7 @@ public class ItemPedido {
     @Column(name = "valor_item") 
     private BigDecimal valorItem;
 
+    @JsonIgnore
     @ManyToOne
     @JoinColumn(name = "pedido_id", nullable = false) 
     private Pedido pedido;

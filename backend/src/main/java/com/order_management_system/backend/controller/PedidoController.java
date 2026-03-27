@@ -18,8 +18,11 @@ public class PedidoController {
     
     @PostMapping
     public ResponseEntity<Pedido> criarPedido(@RequestBody Pedido pedido) {
-        Pedido novoPedido = pedidoService.salvar(pedido);
-        return ResponseEntity.ok(novoPedido);
+        if (pedido.getItensPedido() != null) {
+            pedido.getItensPedido().forEach(item -> item.setPedido(pedido));
+        }
+        Pedido novo = pedidoService.salvar(pedido);
+        return ResponseEntity.ok(novo);
     }
 
     

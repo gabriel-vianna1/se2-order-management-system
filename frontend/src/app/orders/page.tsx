@@ -1,50 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Navbar from "../../components/Navbar";
-
-interface OrderItem {
-  nome: string;
-  qty: number;
-  preco: number;
-}
-
-interface Order {
-  id: number;
-  data: string;
-  total: number;
-  status: "pendente" | "concluido" | "cancelado";
-  items: OrderItem[];
-}
-
-// Mock de pedidos já finalizados
-const mockOrders: Order[] = [
-  {
-    id: 1001,
-    data: "25/03/2026",
-    total: 3499.9,
-    status: "concluido",
-    items: [{ nome: "Notebook Dell", qty: 1, preco: 3499.9 }],
-  },
-  {
-    id: 1002,
-    data: "24/03/2026",
-    total: 48.39,
-    status: "concluido",
-    items: [
-      { nome: "Leite Integral", qty: 3, preco: 5.49 },
-      { nome: "Queijo Mussarela", qty: 1, preco: 32.9 },
-    ],
-  },
-  {
-    id: 1003,
-    data: "23/03/2026",
-    total: 1899.9,
-    status: "pendente",
-    items: [{ nome: "Smartphone Samsung", qty: 1, preco: 1899.9 }],
-  },
-];
+import { listarPedidos } from "../../services/orderService";
+import type { Pedido } from "../../services/orderService";
 
 const statusConfig = {
   pendente:  { label: "Pendente",  bg: "bg-amber-50",   text: "text-amber-700",  border: "border-amber-200",  dot: "bg-amber-400" },
@@ -53,21 +13,41 @@ const statusConfig = {
 };
 
 export default function OrdersPage() {
-  const [orders] = useState<Order[]>(mockOrders);
+  const [orders, setOrders] = useState<Pedido[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
+
+  useEffect(() => {
+    listarPedidos()
+      .then(setOrders)
+      .catch(() => setError("Não foi possível carregar os pedidos."))
+      .finally(() => setLoading(false));
+  }, []);
 
   return (
     <div className="min-h-screen bg-stone-50">
       <Navbar />
       <main className="max-w-4xl mx-auto px-6 py-10">
-        <div className="mb-8 flex items-end justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-stone-800">Pedidos</h1>
-            <p className="text-stone-500 text-sm mt-1">{orders.length} pedido{orders.length !== 1 ? "s" : ""} registrado{orders.length !== 1 ? "s" : ""}</p>
-          </div>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-stone-800">Pedidos</h1>
+          <p className="text-stone-500 text-sm mt-1">{orders.length} pedido{orders.length !== 1 ? "s" : ""} registrado{orders.length !== 1 ? "s" : ""}</p>
         </div>
 
-        {orders.length === 0 ? (
+        {loading && (
+          <div className="text-center py-20 text-stone-400">
+            <div className="w-8 h-8 border-2 border-stone-300 border-t-stone-600 rounded-full animate-spin mx-auto mb-3" />
+            <p className="text-sm">Carregando pedidos...</p>
+          </div>
+        )}
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-5 text-center">
+            <p className="text-red-600 text-sm">{error}</p>
+          </div>
+        )}
+
+        {!loading && !error && orders.length === 0 && (
           <div className="bg-white rounded-xl border border-stone-200 p-20 text-center">
             <p className="text-stone-400 text-4xl mb-4">📋</p>
             <p className="text-stone-500 font-medium mb-4">Nenhum pedido ainda</p>
@@ -75,22 +55,28 @@ export default function OrdersPage() {
               Fazer meu primeiro pedido
             </Link>
           </div>
-        ) : (
+        )}
+
+        {!loading && !error && orders.length > 0 && (
           <div className="flex flex-col gap-3">
             {orders.map((order) => {
-              const st = statusConfig[order.status];
-              const isOpen = expanded === order.id;
+              // Backend não tem status ainda, usa "concluido" como padrão
+              const status = "concluido" as keyof typeof statusConfig;
+              const st = statusConfig[status];
+              const isOpen = expanded === order.id_pedido;
+
               return (
-                <div key={order.id} className="bg-white rounded-xl border border-stone-200 overflow-hidden">
-                  {/* Header */}
+                <div key={order.id_pedido} className="bg-white rounded-xl border border-stone-200 overflow-hidden">
                   <button
-                    onClick={() => setExpanded(isOpen ? null : order.id)}
+                    onClick={() => setExpanded(isOpen ? null : order.id_pedido!)}
                     className="w-full px-5 py-4 flex items-center justify-between hover:bg-stone-50 transition-colors"
                   >
                     <div className="flex items-center gap-4">
                       <div className="text-left">
-                        <p className="font-bold text-stone-800 text-sm">Pedido #{order.id}</p>
-                        <p className="text-stone-400 text-xs mt-0.5">{order.data}</p>
+                        <p className="font-bold text-stone-800 text-sm">Pedido #{order.id_pedido}</p>
+                        <p className="text-stone-400 text-xs mt-0.5">
+                          {order.dataPedido ? new Date(order.dataPedido).toLocaleDateString("pt-BR") : "—"}
+                        </p>
                       </div>
                       <span className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border ${st.bg} ${st.text} ${st.border}`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />
@@ -99,40 +85,50 @@ export default function OrdersPage() {
                     </div>
                     <div className="flex items-center gap-4">
                       <span className="font-bold text-stone-800">
-                        {order.total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                        {order.valorTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                       </span>
-                      <svg
-                        className={`w-4 h-4 text-stone-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
-                        fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                      <Link
+                        href={`/orders/${order.id_pedido}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-xs text-stone-400 hover:text-stone-700 underline"
                       >
+                        Ver detalhes
+                      </Link>
+                      <svg className={`w-4 h-4 text-stone-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                        fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                       </svg>
                     </div>
                   </button>
 
-                  {/* Expanded items */}
                   {isOpen && (
                     <div className="border-t border-stone-100 px-5 py-4">
                       <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">Itens do pedido</p>
-                      <div className="flex flex-col gap-2">
-                        {order.items.map((item, idx) => (
-                          <div key={idx} className="flex justify-between items-center text-sm">
-                            <div className="flex items-center gap-2">
-                              <span className="w-5 h-5 bg-stone-100 rounded text-xs flex items-center justify-center font-bold text-stone-600">
-                                {item.qty}
+                      {order.itensPedido && order.itensPedido.length > 0 ? (
+                        <div className="flex flex-col gap-2">
+                          {order.itensPedido.map((item, idx) => (
+                            <div key={idx} className="flex justify-between items-center text-sm">
+                              <div className="flex items-center gap-2">
+                                <span className="w-5 h-5 bg-stone-100 rounded text-xs flex items-center justify-center font-bold text-stone-600">
+                                  {item.quantidade}
+                                </span>
+                                <span className="text-stone-700">
+                                  {item.produto?.nome}
+                                </span>
+                              </div>
+                              <span className="text-stone-800 font-medium">
+                                {item.valorItem.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                               </span>
-                              <span className="text-stone-700">{item.nome}</span>
                             </div>
-                            <span className="text-stone-800 font-medium">
-                              {(item.preco * item.qty).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-stone-400 text-xs">Nenhum item registrado.</p>
+                      )}
                       <div className="flex justify-between mt-4 pt-3 border-t border-stone-100">
                         <span className="font-bold text-stone-800 text-sm">Total</span>
                         <span className="font-bold text-stone-800">
-                          {order.total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                          {order.valorTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                         </span>
                       </div>
                     </div>

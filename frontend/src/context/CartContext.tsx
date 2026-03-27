@@ -6,6 +6,7 @@ export type ProductType = "eletronico" | "perecivel" | "comum";
 
 export interface Product {
   id: number;
+  id_produto?: number;
   nome: string;
   preco: number;
   estoque: number;

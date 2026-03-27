@@ -4,20 +4,17 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Navbar from "../../../components/Navbar";
-import { ProductType } from "../../../context/CartContext";
+import { criarProduto, criarEletronico, criarPerecivel } from "../../../services/productService";
+
+type ProductType = "comum" | "eletronico" | "perecivel";
 
 export default function NewProductPage() {
   const router = useRouter();
   const [tipo, setTipo] = useState<ProductType>("comum");
-  const [form, setForm] = useState({
-    nome: "",
-    preco: "",
-    estoque: "",
-    voltagem: "",
-    dataValidade: "",
-  });
+  const [form, setForm] = useState({ nome: "", preco: "", estoque: "", voltagem: "", dataValidade: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
 
   function validate() {
     const e: Record<string, string> = {};
@@ -29,15 +26,29 @@ export default function NewProductPage() {
     return e;
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     const e = validate();
     if (Object.keys(e).length > 0) { setErrors(e); return; }
+
     setSaving(true);
-    // TODO: chamar productService.create() quando o backend estiver pronto
-    setTimeout(() => {
-      setSaving(false);
+    setServerError(null);
+    try {
+      const base = { nome: form.nome, preco: Number(form.preco), estoque: Number(form.estoque) };
+
+      if (tipo === "eletronico") {
+        await criarEletronico({ ...base, voltagem: form.voltagem });
+      } else if (tipo === "perecivel") {
+        await criarPerecivel({ ...base, dataValidade: form.dataValidade });
+      } else {
+        await criarProduto(base);
+      }
+
       router.push("/");
-    }, 800);
+    } catch (err) {
+      setServerError("Erro ao salvar produto. Verifique se o backend está rodando.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   function field(label: string, key: string, props: React.InputHTMLAttributes<HTMLInputElement>) {
@@ -48,9 +59,7 @@ export default function NewProductPage() {
           {...props}
           value={form[key as keyof typeof form]}
           onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-          className={`w-full border rounded-lg px-4 py-2.5 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-300 transition-all ${
-            errors[key] ? "border-red-400 bg-red-50" : "border-stone-200 bg-white"
-          }`}
+          className={`w-full border rounded-lg px-4 py-2.5 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-300 transition-all ${errors[key] ? "border-red-400 bg-red-50" : "border-stone-200 bg-white"}`}
         />
         {errors[key] && <p className="text-red-500 text-xs mt-1">{errors[key]}</p>}
       </div>
@@ -74,51 +83,34 @@ export default function NewProductPage() {
         </div>
 
         <div className="bg-white rounded-xl border border-stone-200 p-6 flex flex-col gap-5">
-          {/* Tipo */}
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-2">Tipo do Produto</label>
             <div className="grid grid-cols-3 gap-2">
               {(["comum", "eletronico", "perecivel"] as ProductType[]).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => { setTipo(t); setErrors({}); }}
-                  className={`py-2.5 rounded-lg text-sm font-medium border transition-all ${
-                    tipo === t
-                      ? "bg-stone-800 text-white border-stone-800"
-                      : "bg-white text-stone-600 border-stone-200 hover:border-stone-400"
-                  }`}
-                >
+                <button key={t} onClick={() => { setTipo(t); setErrors({}); }}
+                  className={`py-2.5 rounded-lg text-sm font-medium border transition-all ${tipo === t ? "bg-stone-800 text-white border-stone-800" : "bg-white text-stone-600 border-stone-200 hover:border-stone-400"}`}>
                   {t === "comum" ? "📦 Comum" : t === "eletronico" ? "⚡ Eletrônico" : "🌿 Perecível"}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Campos base */}
           {field("Nome", "nome", { placeholder: "Ex: Notebook Dell Inspiron" })}
-
           <div className="grid grid-cols-2 gap-4">
             {field("Preço (R$)", "preco", { type: "number", min: "0", step: "0.01", placeholder: "0,00" })}
             {field("Estoque", "estoque", { type: "number", min: "0", placeholder: "0" })}
           </div>
-
-          {/* Campos específicos por tipo */}
           {tipo === "eletronico" && field("Voltagem", "voltagem", { placeholder: "Ex: 110V/220V ou 5V" })}
           {tipo === "perecivel" && field("Data de Validade", "dataValidade", { type: "date" })}
 
-          {/* Actions */}
+          {serverError && <p className="text-red-500 text-sm bg-red-50 border border-red-200 rounded-lg px-4 py-2">{serverError}</p>}
+
           <div className="flex gap-3 pt-2 border-t border-stone-100">
-            <Link
-              href="/"
-              className="flex-1 text-center py-2.5 rounded-lg border border-stone-200 text-stone-600 text-sm font-medium hover:bg-stone-50 transition-colors"
-            >
+            <Link href="/" className="flex-1 text-center py-2.5 rounded-lg border border-stone-200 text-stone-600 text-sm font-medium hover:bg-stone-50 transition-colors">
               Cancelar
             </Link>
-            <button
-              onClick={handleSubmit}
-              disabled={saving}
-              className="flex-1 py-2.5 rounded-lg bg-stone-800 text-white text-sm font-semibold hover:bg-stone-700 disabled:opacity-60 transition-colors"
-            >
+            <button onClick={handleSubmit} disabled={saving}
+              className="flex-1 py-2.5 rounded-lg bg-stone-800 text-white text-sm font-semibold hover:bg-stone-700 disabled:opacity-60 transition-colors">
               {saving ? "Salvando..." : "Cadastrar Produto"}
             </button>
           </div>
